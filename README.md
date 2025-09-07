@@ -140,6 +140,46 @@ Códigos HTTP usados: `200`, `201`, `204`, `400`, `404`, `422`.
 ¿Por qué SQLite? Es cero-config, ideal para desarrollo y demos. Para producción multiusuario, es común migrar a Postgres/MySQL.
 
 
+## SQLite: mini masterclass (CLI útil)
+Nota: `SHOW TABLES` es de MySQL; en SQLite usa `.tables`, `.schema` y `PRAGMA`.
+
+- Ver tablas y esquemas:
+  - `sqlite3 data/app.db ".tables"`
+  - `sqlite3 data/app.db ".schema ideas"` (DDL de la tabla)
+  - `sqlite3 data/app.db "PRAGMA database_list;"` (bases adjuntas)
+- Inspeccionar columnas, claves y índices:
+  - `sqlite3 data/app.db "PRAGMA table_info(ideas);"`
+  - `sqlite3 data/app.db "PRAGMA foreign_key_list(ideas);"`
+  - `sqlite3 data/app.db "PRAGMA index_list(ideas);"`
+  - Para un índice específico: `sqlite3 data/app.db "PRAGMA index_info(nombre_indice);"`
+- Consultas frecuentes:
+  - Top ideas por likes: `sqlite3 data/app.db "SELECT id,title,likes FROM ideas ORDER BY likes DESC LIMIT 5;"`
+  - Búsqueda por título: `sqlite3 data/app.db "SELECT id,title FROM ideas WHERE title LIKE '%radio%';"`
+  - Conteo total: `sqlite3 data/app.db "SELECT COUNT(*) FROM ideas;"`
+  - Paginación: `sqlite3 data/app.db "SELECT id,title FROM ideas ORDER BY id DESC LIMIT 10 OFFSET 0;"`
+- Trabajar con JSON (extensión json1 suele venir activada):
+  - Listar todos los tags: `sqlite3 data/app.db "SELECT DISTINCT value AS tag FROM ideas, json_each(ideas.tags_json) ORDER BY tag;"`
+  - Conteo por tag: `sqlite3 data/app.db "SELECT value AS tag, COUNT(*) AS n FROM ideas, json_each(ideas.tags_json) GROUP BY tag ORDER BY n DESC;"`
+  - Largo del array de tags: `sqlite3 data/app.db "SELECT id, json_array_length(tags_json) AS n_tags FROM ideas;"`
+- Rendimiento y plan de ejecución:
+  - `sqlite3 data/app.db "EXPLAIN QUERY PLAN SELECT * FROM ideas WHERE title LIKE '%ai%';"`
+  - Crear índice (ejemplo): `sqlite3 data/app.db "CREATE INDEX IF NOT EXISTS idx_ideas_title ON ideas(title);"`
+- Transacciones seguras:
+  - `sqlite3 data/app.db "BEGIN; UPDATE ideas SET likes = likes + 1 WHERE id = 1; COMMIT;"`
+  - Deshacer: usa `ROLLBACK;` en lugar de `COMMIT;` si algo falla.
+- Exportar/Importar datos:
+  - CSV con encabezados: `sqlite3 -header -csv data/app.db "SELECT * FROM ideas;" > ideas.csv`
+  - Importar CSV a una tabla existente con mismas columnas:
+    - `sqlite3 data/app.db ".mode csv" ".import ideas.csv ideas"`
+- Backups y mantenimiento:
+  - Backup atómico: `sqlite3 data/app.db ".backup 'backup-$(date +%Y%m%d).db'"`
+  - Reclamación de espacio: `sqlite3 data/app.db "VACUUM;"`
+  - Optimización sugerida: `sqlite3 data/app.db "PRAGMA optimize;"`
+- Consejos de migración en SQLite:
+  - `ALTER TABLE ... ADD COLUMN` funciona, pero renombrar/eliminar columnas suele requerir crear una tabla nueva, copiar datos y renombrar.
+  - Para cambios no triviales, usa una herramienta de migraciones (p.ej. Alembic) o script controlado.
+
+
 ## Cómo funciona todo (de punta a punta)
 - El navegador carga `index.html` y `app.js`.
 - `app.js` hace `fetch('/api/ideas')` para renderizar la lista.
