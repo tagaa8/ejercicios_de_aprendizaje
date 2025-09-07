@@ -179,6 +179,30 @@ Nota: `SHOW TABLES` es de MySQL; en SQLite usa `.tables`, `.schema` y `PRAGMA`.
   - `ALTER TABLE ... ADD COLUMN` funciona, pero renombrar/eliminar columnas suele requerir crear una tabla nueva, copiar datos y renombrar.
   - Para cambios no triviales, usa una herramienta de migraciones (p.ej. Alembic) o script controlado.
 
+### Encabezados y formato de salida (como en MySQL)
+- One‑liner con encabezados y columnas alineadas:
+  - `sqlite3 -header -column data/app.db "SELECT * FROM ideas;"`
+- One‑liner en CSV con encabezados (útil para Excel/Sheets):
+  - `sqlite3 -header -csv data/app.db "SELECT * FROM ideas;" > ideas.csv`
+- Modo interactivo (dentro de sqlite3):
+  - `sqlite3 data/app.db`
+  - `.headers on` (muestra títulos de columna)
+  - `.mode column` (columnas alineadas)
+  - Opciones modernas si tu sqlite3 es reciente (>= 3.41):
+    - `.mode table` (tabla ASCII)
+    - `.mode box` (bordes tipo box)
+    - `.mode markdown` (tabla Markdown)
+- Hacerlo permanente en tu shell creando `~/.sqliterc`:
+  - Contenido sugerido:
+    - `.headers on`
+    - `.mode column`
+- macOS con Homebrew (sqlite más nuevo):
+  - `brew install sqlite`
+  - Ejecuta el binario de Homebrew:
+    - `$(brew --prefix)/opt/sqlite/bin/sqlite3 -header -cmd ".mode table" data/app.db "SELECT * FROM ideas;"`
+- Renombrar encabezados con alias:
+  - `sqlite3 -header -column data/app.db "SELECT id AS ID, title AS Título, likes AS Likes FROM ideas;"`
+
 
 ## Cómo funciona todo (de punta a punta)
 - El navegador carga `index.html` y `app.js`.
