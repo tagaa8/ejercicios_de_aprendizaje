@@ -3,14 +3,20 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from backend.db import SessionLocal, ensure_data_dir
+from backend.db import SessionLocal, ensure_data_dir, engine, Base
 from backend.models import Idea
 
 
 def main() -> None:
     ensure_data_dir()
+    # Crea las tablas si aún no existen
+    Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
+        # Si ya hay datos, no duplicar
+        if db.query(Idea).count() > 0:
+            print("Seed ya aplicado; no se insertan duplicados.")
+            return
         samples = [
             (
                 "Mapa de cafeterías indie",
@@ -39,4 +45,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
