@@ -90,14 +90,14 @@ Sin `make` (comandos equivalentes):
   - `source .venv/bin/activate`
   - `pip install -U pip`
   - `pip install -r backend/requirements.txt`
-  - `python3 scripts/seed.py`
+  - `python3 -m scripts.seed`
   - `uvicorn backend.app:app --reload --port 8000`
 - Windows (PowerShell):
   - `python -m venv .venv`
   - `.venv\Scripts\Activate.ps1`
   - `python -m pip install -U pip`
   - `pip install -r backend\requirements.txt`
-  - `python scripts\seed.py`
+  - `python -m scripts.seed`
   - `uvicorn backend.app:app --reload --port 8000`
 
 Abre tu navegador en `http://127.0.0.1:8000`.

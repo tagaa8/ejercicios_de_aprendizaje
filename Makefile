@@ -13,9 +13,8 @@ run:
 	. .venv/bin/activate && $(UVICORN) backend.app:app --reload --port 8000
 
 seed:
-	. .venv/bin/activate && $(PY) scripts/seed.py
+	. .venv/bin/activate && $(PY) -m scripts.seed
 
 clean:
 	rm -rf .venv data/__pycache__ **/__pycache__
 	rm -f data/app.db
-
