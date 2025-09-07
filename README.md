@@ -271,3 +271,271 @@ Nota: Si es tu primer push, puede que necesites `git push -u origin main`.
 
 ## Licencia y uso
 Este proyecto es educativo. Úsalo para aprender, modificar y experimentar. No incluye datos sensibles.
+
+
+## Masterclass de Bases de Datos (SQL vs NoSQL)
+Aprende cuándo usar cada tipo de base y por qué. Incluye ejemplos reales y comandos para macOS (Mac M2).
+
+### Mapa visual
+```mermaid
+flowchart LR
+  A[Tu App] -->|ORM/Driver SQL| B[(SQLite)]
+  A -->|ORM/Driver SQL| C[(PostgreSQL)]
+  A -->|Driver SQL| D[(MySQL/MariaDB)]
+  A -->|Driver Doc| E[(MongoDB)]
+  A -->|Cliente KV| F[(Redis)]
+  A -->|Cliente Search| G[(Elasticsearch/OpenSearch)]
+```
+
+### Conceptos clave
+- SQL: esquema definido, relaciones, JOINs, transacciones ACID, consistencia fuerte.
+- NoSQL: esquema flexible, escala horizontal más sencilla en ciertos casos, modelos: documentos, clave‑valor, columnas, grafos.
+- Índices: aceleran lectura, ralentizan escritura. Elige columnas consultadas con frecuencia.
+- Transacciones: agrupan cambios; en SQL son nativas; en NoSQL depende.
+- CAP a grandes rasgos: Consistency, Availability, Partition tolerance; no puedes maximizar las tres a la vez.
+
+### ¿Cuándo usar cada una?
+- SQLite (SQL, embebida):
+  - Casos: apps de escritorio/móviles, prototipos, demos, datalakes pequeños, CI.
+  - Pros: cero configuración, un solo archivo, rápida en lecturas locales.
+  - Contras: escritura concurrente limitada (lock a nivel de DB), sin servidor multiusuario.
+  - En este proyecto: perfecta para local/educativo. Archivo: `data/app.db`.
+- PostgreSQL (SQL, servidor):
+  - Casos: backend transaccional serio, JSONB mixto, funciones avanzadas, extensiones (PostGIS, Timescale).
+  - Pros: ACID sólido, tipos ricos, ventanas, CTE, `JSONB`, `GIN`/`BRIN`, buena concurrencia.
+  - Contras: más mantenimiento; requiere servidor.
+  - Ejemplo JSONB: `SELECT * FROM ideas WHERE tags @> '["ux"]'::jsonb;`
+- MySQL/MariaDB (SQL, servidor):
+  - Casos: SaaS, e‑commerce, blogs, stacks LAMP/LNMP.
+  - Pros: soporte masivo, replicación madura, muy rápida en lecturas.
+  - Contras: algunas diferencias SQL (p.ej. CTE y funciones ventana históricamente más limitadas según versión).
+- MongoDB (NoSQL documentos):
+  - Casos: esquemas fluidos, documentos anidados (catálogos, eventos), prototipos rápidos.
+  - Pros: flexibilidad, sharding integrado, índices variados.
+  - Contras: transacciones multi‑documento tardías; modelar relaciones complejas puede ser más difícil.
+  - Ejemplo: `db.ideas.find({ tags: "ux" })`
+- Redis (NoSQL clave‑valor in‑memory):
+  - Casos: caché, colas, sesiones, rate‑limit.
+  - Pros: latencias en micro/milis, estructuras de datos (listas, sets, sorted sets).
+  - Contras: memoria cara; persistencia y tamaños requieren cuidado.
+  - Ejemplo: `SET idea:1:likes 10` y `INCR idea:1:likes`.
+- Elasticsearch/OpenSearch (NoSQL búsqueda):
+  - Casos: full‑text search, logs, analytics.
+  - Pros: relevancia, agregaciones, escalado horizontal.
+  - Contras: consumo RAM/CPU; consistencia eventual.
+
+### Comandos útiles (macOS, Homebrew)
+Nota: estos sirven para aprender; este proyecto usa SQLite por defecto.
+- Instalar servidores (si quieres practicar):
+  - Postgres: `brew install postgresql@16 && brew services start postgresql@16`
+  - MySQL: `brew install mysql && brew services start mysql`
+- Conectarte rápido:
+  - Postgres: `psql postgres` (o `psql -h 127.0.0.1 -U tu_usuario -d tu_db`)
+  - MySQL: `mysql -u root -p`
+- Crear DB/tablas (ejemplos SQL similares entre motores):
+  ```sql
+  CREATE TABLE ideas (
+    id SERIAL PRIMARY KEY,
+    title VARCHAR(200) NOT NULL,
+    description TEXT NOT NULL,
+    likes INT NOT NULL DEFAULT 0
+  );
+  CREATE INDEX idx_ideas_title ON ideas(title);
+  ```
+- JSON en Postgres (equivalente conceptual a `tags_json` de este proyecto):
+  ```sql
+  ALTER TABLE ideas ADD COLUMN tags JSONB NOT NULL DEFAULT '[]';
+  SELECT id, title FROM ideas WHERE tags @> '["ux"]'::jsonb;
+  ```
+
+### Buenas prácticas universales
+- Define claves primarias y restricciones (NOT NULL, UNIQUE, FK).
+- Índices sólo donde aportan; mide con `EXPLAIN`/`EXPLAIN ANALYZE`.
+- Migraciones versionadas (Alembic con SQLAlchemy, Flyway, Liquibase).
+- Backups y restauración probados; no basta con hacerlos, hay que ensayar.
+- Observa métricas: conexiones, locks, latencias, I/O, tamaño de índices.
+
+### Ejercicios con este proyecto (SQLite)
+- Top tags (usa extensión json1):
+  `sqlite3 data/app.db "SELECT value tag, COUNT(*) n FROM ideas, json_each(tags_json) GROUP BY tag ORDER BY n DESC;"`
+- Índice por título y medición:
+  1) `sqlite3 data/app.db "EXPLAIN QUERY PLAN SELECT * FROM ideas WHERE title LIKE '%AI%';"`
+  2) `sqlite3 data/app.db "CREATE INDEX IF NOT EXISTS idx_ideas_title ON ideas(title);"`
+  3) Repite el `EXPLAIN QUERY PLAN` y compara.
+
+
+## Servidores y Puertos (cómo se habla la red)
+Entiende qué es un puerto, por qué existe y cómo verlo en tu Mac.
+
+### Idea general
+```mermaid
+flowchart LR
+  Browser[Tu navegador]
+  OS[macOS Socket TCP]
+  UV[Uvicorn FastAPI :8000]
+  Nginx[Nginx :80/:443]
+
+  Browser -- TCP dst:8000 --> OS --> UV
+  Browser -- TCP dst:443 --> OS --> Nginx --> UV
+```
+
+- IP identifica un host; el puerto identifica un proceso/servicio en ese host.
+- Puertos bien conocidos: 22 (SSH), 80 (HTTP), 443 (HTTPS); app suele usar 8000/3000 en dev.
+- `127.0.0.1` (localhost) es tu máquina; `0.0.0.0` significa “todas las interfaces”.
+- Un proceso “escucha” en un puerto (LISTEN). El cliente usa un puerto efímero para conectarse.
+
+### Ejemplo real con este proyecto
+- Ejecuta el server: `make run` (levanta en `http://127.0.0.1:8000`).
+- Comprueba salud:
+  - `curl -I http://127.0.0.1:8000/api/health`
+- Ver procesos escuchando puertos (macOS):
+  - `lsof -iTCP -sTCP:LISTEN -n -P | grep -E ':8000|:80|:443'`
+- Ver quién usa el 8000 específicamente:
+  - `lsof -i :8000 -n -P`
+- Probar conectividad TCP:
+  - `nc -vz 127.0.0.1 8000`
+
+### Cambiar puertos y resolver conflictos
+- Si `8000` está ocupado: `uvicorn backend.app:app --reload --port 8001`
+- En este repo con `make`: `make run PORT=8001` (puedes exportar `PORT` y leerlo en app si lo implementas).
+- Matar proceso (con cuidado):
+  - `kill -15 <PID>` y si no responde `kill -9 <PID>`
+
+### Servir hacia Internet (reverse proxy)
+```mermaid
+sequenceDiagram
+  participant C as Cliente (HTTPS :443)
+  participant N as Nginx (443 → 8000)
+  participant U as Uvicorn FastAPI (8000)
+  C->>N: GET https://tusitio.com/
+  N->>U: Proxy Pass http://127.0.0.1:8000/
+  U-->>N: Respuesta 200
+  N-->>C: Respuesta 200 (TLS)
+```
+
+- Nginx escucha en 443 con TLS y reenvía al backend en 127.0.0.1:8000.
+- Beneficios: TLS, compresión, límites, logging centralizado, múltiples apps en un host.
+
+### Puertos y firewall en macOS (tips)
+- Abrir/permitir apps: Preferencias del Sistema > Seguridad y Privacidad > Firewall > Opciones.
+- Comprobar escucha local no requiere cambios de firewall.
+
+### Red local (LAN) y `0.0.0.0`
+- Para que otros dispositivos de tu red accedan al server en tu Mac:
+  - Levanta en todas las interfaces: `uvicorn backend.app:app --host 0.0.0.0 --port 8000`
+  - Descubre tu IP en Wi‑Fi: `ipconfig getifaddr en0`
+  - Desde otro equipo: `http://TU_IP_LAN:8000`
+
+### Glosario rápido
+- Socket: extremo de comunicación (IP:puerto).
+- Puerto efímero: puerto cliente temporal (macOS suele usar 49152–65535).
+- Bind: acción de un proceso de escuchar en un puerto.
+- Loopback: interfaz local (`127.0.0.1`).
+
+
+## Servidores Web: Nginx, Apache, Caddy, etc.
+Qué son, para qué sirven y cómo encajan con este proyecto.
+
+### Rol de un servidor web
+- Reverse proxy: recibe peticiones HTTP/HTTPS y las reenvía a tu app (Uvicorn) en un puerto interno.
+- Terminación TLS: maneja certificados y HTTPS (puerto 443).
+- Estáticos eficientes: sirve archivos estáticos con cache y compresión.
+- Balanceo de carga: reparte tráfico entre varios procesos/hosts de tu app.
+- Seguridad y límites: rate‑limit, tamaño máximo de request, headers de seguridad.
+
+### ¿Qué usamos aquí y por qué?
+- En desarrollo: Uvicorn (ASGI) ejecuta FastAPI y además sirve el frontend estático. Es suficiente y simple para local.
+- En producción: se recomienda poner un servidor web delante (Nginx/Caddy/Apache) y detrás correr Uvicorn (o Gunicorn+Uvicorn workers) para:
+  - Usar HTTPS/TLS fácil y seguro.
+  - Mejor rendimiento en estáticos y control de cabeceras/caché.
+  - Tolerancia a fallos y escalamiento (múltiples workers/backends).
+
+### Patrones de despliegue típicos
+```mermaid
+flowchart LR
+  subgraph Internet
+    C[Cliente]
+  end
+  subgraph Servidor
+    N[Nginx/Caddy/Apache :443/:80]
+    G[Gunicorn + Uvicorn workers]
+    U1[Uvicorn worker 1 :8000]
+    U2[Uvicorn worker 2 :8001]
+  end
+  C -- HTTPS --> N
+  N -- proxy_pass --> G --> U1
+  G --> U2
+```
+
+### Opciones populares
+- Nginx: muy usado, rápido, flexible. Ideal para reverse proxy y estáticos.
+- Apache HTTPD: veterano, modular, ampliamente disponible. `mod_proxy` para reverse proxy.
+- Caddy: configuración sencilla, TLS automático con Let’s Encrypt.
+- Traefik: orientado a contenedores (Docker/K8s), configuración por etiquetas.
+
+### Ejemplo Nginx → FastAPI (reverse proxy)
+Archivo de sitio (Linux): `/etc/nginx/sites-available/museo` (en macOS Homebrew: `/opt/homebrew/etc/nginx/servers/museo.conf`):
+```
+server {
+    listen 80;
+    server_name _;
+
+    # Archivos estáticos opcionales (si los sirves con Nginx):
+    # location /assets/ {
+    #     alias /ruta/al/repo/frontend/;
+    #     expires 7d;
+    # }
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+Comandos útiles (macOS con Homebrew):
+- `brew install nginx`
+- Edita config: `/opt/homebrew/etc/nginx/nginx.conf` y crea archivos en `/opt/homebrew/etc/nginx/servers/`
+- Verifica: `nginx -t -c /opt/homebrew/etc/nginx/nginx.conf`
+- Arranca: `brew services start nginx` (detén con `brew services stop nginx`)
+
+### Ejemplo Apache → FastAPI (reverse proxy)
+Habilita módulos y usa `ProxyPass`/`ProxyPassReverse`:
+```
+<VirtualHost *:80>
+  ServerName ejemplo.local
+  ProxyPreserveHost On
+  ProxyPass / http://127.0.0.1:8000/
+  ProxyPassReverse / http://127.0.0.1:8000/
+</VirtualHost>
+```
+Módulos requeridos: `proxy`, `proxy_http`. En macOS (Homebrew): `brew install httpd` y edición en `/opt/homebrew/etc/httpd/httpd.conf`.
+
+### Ejemplo Caddy (TLS automático en dominio público)
+Archivo `Caddyfile` minimal:
+```
+tu-dominio.com {
+  reverse_proxy 127.0.0.1:8000
+}
+```
+Caddy obtiene certificados de forma automática (requiere DNS público apuntando a tu servidor).
+
+### Iniciar app server con múltiples workers
+- Opción directa Uvicorn (varios procesos con `--workers`):
+  - `uvicorn backend.app:app --host 0.0.0.0 --port 8000 --workers 2`
+- Patrón clásico con Gunicorn + Uvicorn workers:
+  - `pip install gunicorn uvicorn`
+  - `gunicorn -k uvicorn.workers.UvicornWorker -w 2 -b 127.0.0.1:8000 backend.app:app`
+
+### Probar extremo a extremo (local)
+1) Inicia la app: `uvicorn backend.app:app --host 127.0.0.1 --port 8000`
+2) Inicia Nginx (escucha en 80) y configura `proxy_pass` a `127.0.0.1:8000`.
+3) Prueba:
+   - `curl -I http://127.0.0.1/api/health` (deberías ver 200 vía Nginx)
+   - `curl -I http://127.0.0.1:8000/api/health` (directo Uvicorn)
+
+### ¿Servir estáticos con la app o con Nginx?
+- Desarrollo: la app (FastAPI/StaticFiles) es suficiente.
+- Producción: Nginx sirve estáticos con `expires`, `gzip/br`, y la app atiende sólo API.
